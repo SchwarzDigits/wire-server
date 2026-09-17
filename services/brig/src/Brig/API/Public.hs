@@ -810,7 +810,9 @@ getClientCapabilities uid cid = do
 
 getRichInfo ::
   ( Member UserSubsystem r,
-    Member UserStore r
+    Member UserStore r,
+    Member GalleyAPIAccess r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   UserId ->
@@ -825,7 +827,14 @@ getRichInfo lself user = do
   selfUser <- fetch lself
   otherUser <- fetch luser
   case (Public.userTeam selfUser, Public.userTeam otherUser) of
-    (Just t1, Just t2) | t1 == t2 -> pure ()
+    (Just t1, Just t2) | t1 == t2 ->
+      -- in an isolated team, only admins can see the rich info of other members
+      unless (tUnqualified lself == user) $ do
+        isolated <-
+          lift . liftSem $
+            TeamSubsystem.internalGetTeamMember (tUnqualified lself) t1
+              >>= maybe (pure True) (GalleyAPIAccess.isIsolatedNonAdminViaGalley t1)
+        when isolated $ throwStd insufficientTeamPermissions
     _ -> throwStd insufficientTeamPermissions
   -- Query rich info
   lift $ liftSem $ fold <$> UserStore.getRichInfo (tUnqualified luser)

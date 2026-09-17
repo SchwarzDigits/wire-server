@@ -47,7 +47,7 @@ import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
 import Wire.BackgroundJobsPublisher
 import Wire.Error
-import Wire.GalleyAPIAccess (GalleyAPIAccess, internalGetConversation)
+import Wire.GalleyAPIAccess (GalleyAPIAccess, internalGetConversation, isTeamIsolatedViaGalley)
 import Wire.NotificationSubsystem
 import Wire.Sem.Random qualified as Random
 import Wire.TeamSubsystem
@@ -203,7 +203,8 @@ mkEvent = mmkEvent . Just
 getUserGroup ::
   ( Member UserSubsystem r,
     Member Store.UserGroupStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member GalleyAPIAccess r
   ) =>
   UserId ->
   UserGroupId ->
@@ -213,7 +214,9 @@ getUserGroup getter gid includeChannels = runMaybeT $ do
   team <- MaybeT $ getUserTeam getter
   getterCanSeeAll <- mkGetterCanSeeAll getter team
   userGroup <- MaybeT $ getUserGroupInternal team gid includeChannels
-  if getterCanSeeAll || getter `elem` (toList (runIdentity userGroup.members))
+  -- members of an isolated team cannot see the other members of their groups
+  isolated <- if getterCanSeeAll then pure False else lift $ isTeamIsolatedViaGalley team
+  if getterCanSeeAll || (not isolated && getter `elem` toList (runIdentity userGroup.members))
     then pure userGroup
     else MaybeT $ pure Nothing
 

@@ -733,6 +733,43 @@ limitedEventFanout:
     status: disabled
 ```
 
+### Isolated Members
+
+The `isolatedMembers` feature flag isolates the members of a team from each
+other. It is disabled and locked by default and has no public `PUT` endpoint; it
+can only be changed by the site operator via the internal API (or stern):
+
+```sh
+curl -XPUT  galley:8080/i/teams/$TID/features/isolatedMembers/unlocked
+curl -XPATCH galley:8080/i/teams/$TID/features/isolatedMembers -d '{"status": "enabled"}' -H 'Content-Type: application/json'
+```
+
+When enabled:
+
+- Being in the same team no longer counts as being connected. Members (including
+  admins) can neither open 1-1 conversations with each other nor add each other to
+  conversations unless they are connected.
+- Regular members (not admins or owners) cannot discover other members of the team:
+  user search returns no results, team member lists and lookups (including the legal
+  hold status of other users) only return the member themselves, and team
+  conversations, team notifications, team collaborators, co-members of user groups
+  and other members' rich info are hidden. Broadcasts only go to the sender's
+  contacts.
+- Profile updates of team members and member-leave events are only sent to team
+  admins (as with `limitedEventFanout`).
+
+Profile lookups by user ID are not restricted. To hide email addresses of team
+members from each other, set brig's `setEmailVisibility` to `visible_to_self`.
+The flag does not affect the `channels` feature; keep it disabled for isolated teams.
+
+```yaml
+# galley.yaml
+isolatedMembers:
+  defaults:
+    status: disabled
+    lockStatus: locked
+```
+
 ### Domain Registration
 
 This feature flag is per default disabled and locked. It can be set by `ibis` via the internal API and it is not meant to be configured via team management.

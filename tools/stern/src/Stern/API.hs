@@ -200,6 +200,8 @@ sitemap' =
     :<|> Named @"put-route-meetings-premium-config" (mkFeatureStatusPutRoute @MeetingsPremiumConfig)
     :<|> Named @"get-route-background-effects-config" (mkFeatureGetRoute @BackgroundEffectsConfig)
     :<|> Named @"put-route-background-effects-config" (mkFeatureStatusPutRoute @BackgroundEffectsConfig)
+    :<|> Named @"get-route-isolated-members-config" (mkFeatureGetRoute @IsolatedMembersConfig)
+    :<|> Named @"put-route-isolated-members-config" (mkFeatureStatusPutRoute @IsolatedMembersConfig)
     :<|> Named @"get-team-invoice" getTeamInvoice
     :<|> Named @"get-team-billing-info" getTeamBillingInfo
     :<|> Named @"put-team-billing-info" updateTeamBillingInfo
@@ -240,6 +242,7 @@ sitemap' =
     :<|> Named @"lock-unlock-route-meetings-config" (mkFeatureLockUnlockRoute @MeetingsConfig)
     :<|> Named @"lock-unlock-route-meetings-premium-config" (mkFeatureLockUnlockRoute @MeetingsPremiumConfig)
     :<|> Named @"lock-unlock-route-background-effects-config" (mkFeatureLockUnlockRoute @BackgroundEffectsConfig)
+    :<|> Named @"lock-unlock-route-isolated-members-config" (mkFeatureLockUnlockRoute @IsolatedMembersConfig)
 
 sitemapInternal :: Servant.Server SternAPIInternal
 sitemapInternal =

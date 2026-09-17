@@ -54,6 +54,7 @@ module Galley.API.Teams
     internalDeleteBindingTeam,
     updateTeamCollaborator,
     removeTeamCollaborator,
+    limitedTeamEventFanout,
   )
 where
 
@@ -399,7 +400,8 @@ getTeamMembers ::
     Member E.BrigAPIAccess r,
     Member (E.TeamMemberStore CassandraPaging) r,
     Member P.TinyLog r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -411,7 +413,8 @@ getTeamMembers lzusr tid mbMaxResults mbPagingState = do
   member <- TeamSubsystem.internalGetTeamMember uid tid >>= noteS @'NotATeamMember
   let mState = C.PagingState . LBS.fromStrict <$> (mbPagingState >>= mtpsState)
   let mLimit = fromMaybe (unsafeRange Public.hardTruncationLimit) mbMaxResults
-  if member `hasPermission` SearchContacts
+  isolated <- isIsolatedNonAdmin tid member
+  if member `hasPermission` SearchContacts && not isolated
     then do
       pws :: PageWithState Void TeamMember <- E.listTeamMembers @CassandraPaging tid mState mLimit
       -- FUTUREWORK: Remove this via-Brig filtering when user and
@@ -439,8 +442,9 @@ getTeamMembers lzusr tid mbMaxResults mbPagingState = do
     else do
       -- If the user does not have the SearchContacts permission (e.g. the external partner),
       -- we only return the person who invited them and the self user.
+      -- Members of an isolated team only get the self user.
       let invitee = member ^. invitation <&> fst
-      let uids = uid : maybeToList invitee
+      let uids = uid : (if isolated then [] else maybeToList invitee)
       TeamSubsystem.internalSelectTeamMembers tid uids <&> toTeamSingleMembersPage member
   where
     toTeamMembersPage :: TeamMember -> C.PageWithState Void TeamMember -> TeamMembersPage
@@ -461,7 +465,8 @@ getTeamMembers lzusr tid mbMaxResults mbPagingState = do
 bulkGetTeamMembers ::
   ( Member (ErrorS 'BulkGetMemberLimitExceeded) r,
     Member (ErrorS 'NotATeamMember) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -472,7 +477,9 @@ bulkGetTeamMembers lzusr tid mbMaxResults uids = do
   unless (length (U.mUsers uids) <= fromIntegral (fromRange (fromMaybe (unsafeRange Public.hardTruncationLimit) mbMaxResults))) $
     throwS @'BulkGetMemberLimitExceeded
   m <- TeamSubsystem.internalGetTeamMember (tUnqualified lzusr) tid >>= noteS @'NotATeamMember
-  mems <- TeamSubsystem.internalSelectTeamMembers tid (U.mUsers uids)
+  isolated <- isIsolatedNonAdmin tid m
+  let visible = if isolated then filter (== tUnqualified lzusr) else id
+  mems <- TeamSubsystem.internalSelectTeamMembers tid (visible (U.mUsers uids))
   let withPerms = (m `canSeePermsOf`)
       hasMore = ListComplete
   pure $ setOptionalPermsMany withPerms (newTeamMemberList mems hasMore)
@@ -480,7 +487,8 @@ bulkGetTeamMembers lzusr tid mbMaxResults uids = do
 getTeamMember ::
   ( Member (ErrorS 'TeamMemberNotFound) r,
     Member (ErrorS 'NotATeamMember) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -491,6 +499,9 @@ getTeamMember lzusr tid uid = do
     TeamSubsystem.internalGetTeamMember (tUnqualified lzusr) tid
       >>= noteS @'NotATeamMember
   let withPerms = (m `canSeePermsOf`)
+  isolated <- isIsolatedNonAdmin tid m
+  when (isolated && uid /= tUnqualified lzusr) $
+    throwS @'TeamMemberNotFound
   member <- TeamSubsystem.internalGetTeamMember uid tid >>= noteS @'TeamMemberNotFound
   pure $ setOptionalPerms withPerms member
 
@@ -797,12 +808,12 @@ deleteTeamMember' lusr zcon tid remove mBody = do
       Journal.teamUpdate tid teamSizeAfterDelete $ filter (/= remove) owners
       pure TeamMemberDeleteAccepted
     else do
-      (feat :: LockableFeature LimitedEventFanoutConfig) <- getFeatureForTeam tid
-      case feat.status of
-        FeatureStatusEnabled -> do
+      limited <- limitedTeamEventFanout tid
+      if limited
+        then do
           admins <- E.getTeamAdmins tid
           uncheckedDeleteTeamMember lusr (Just zcon) tid remove (Left admins)
-        FeatureStatusDisabled -> do
+        else do
           mems <- TeamSubsystem.getTeamMembersForFanout tid
           uncheckedDeleteTeamMember lusr (Just zcon) tid remove (Right mems)
       pure TeamMemberDeleteCompleted
@@ -872,7 +883,8 @@ getTeamConversations ::
   ( Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member ConversationStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r
   ) =>
   UserId ->
   TeamId ->
@@ -883,6 +895,8 @@ getTeamConversations zusr tid = do
       >>= noteS @'NotATeamMember
   unless (tm `hasPermission` GetTeamConversations) $
     throwS @OperationDenied
+  whenM (isIsolatedNonAdmin tid tm) $
+    throwS @OperationDenied
   Public.newTeamConversationList . fmap newTeamConversation <$> E.getTeamConversations tid
 
 getTeamConversation ::
@@ -890,7 +904,8 @@ getTeamConversation ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member ConversationStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r
   ) =>
   UserId ->
   TeamId ->
@@ -901,6 +916,8 @@ getTeamConversation zusr tid cid = do
     TeamSubsystem.internalGetTeamMember zusr tid
       >>= noteS @'NotATeamMember
   unless (tm `hasPermission` GetTeamConversations) $
+    throwS @OperationDenied
+  whenM (isIsolatedNonAdmin tid tm) $
     throwS @OperationDenied
   teamConv <- E.getTeamConversation tid cid >>= noteS @'ConvNotFound
   pure $ newTeamConversation teamConv
@@ -1119,13 +1136,27 @@ getBindingTeamMembers ::
   ( Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NonBindingTeam) r,
     Member TeamStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r
   ) =>
   UserId ->
   Sem r TeamMemberList
 getBindingTeamMembers zusr = do
   tid <- E.lookupBindingTeam zusr
-  TeamSubsystem.getTeamMembersForFanout tid
+  -- in an isolated team, user events (e.g. profile updates) only reach the
+  -- team admins
+  isolated <- isTeamIsolated tid
+  if isolated
+    then TeamSubsystem.internalGetTeamAdmins tid
+    else TeamSubsystem.getTeamMembersForFanout tid
+
+-- | Whether team events like member-leave only go to the team admins. This is
+-- the case if 'LimitedEventFanoutConfig' or 'IsolatedMembersConfig' is enabled.
+limitedTeamEventFanout :: (Member FeaturesConfigSubsystem r) => TeamId -> Sem r Bool
+limitedTeamEventFanout tid =
+  (||)
+    <$> featureEnabledForTeam (Proxy @LimitedEventFanoutConfig) tid
+    <*> isTeamIsolated tid
 
 -- This could be extended for more checks, for now we test only legalhold
 --
@@ -1270,12 +1301,9 @@ removeTeamCollaborator lusr tid rusr = do
   zusrMember <- TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid
   void $ TeamSubsystem.permissionCheck RemoveTeamCollaborator zusrMember
   toNotify <-
-    (getFeatureForTeam @_ @LimitedEventFanoutConfig tid)
-      >>= ( \case
-              FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
-              FeatureStatusDisabled -> Right <$> TeamSubsystem.getTeamMembersForFanout tid
-          )
-        . (.status)
+    limitedTeamEventFanout tid >>= \case
+      True -> Left <$> E.getTeamAdmins tid
+      False -> Right <$> TeamSubsystem.getTeamMembersForFanout tid
   uncheckedDeleteTeamMember lusr Nothing tid rusr toNotify
   internalRemoveTeamCollaborator rusr tid
   now <- Now.get

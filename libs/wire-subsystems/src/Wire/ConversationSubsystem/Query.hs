@@ -818,7 +818,8 @@ getMLSOne2OneOwnConversation ::
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamCollaboratorsSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -841,7 +842,8 @@ getMLSOne2OneConversationInternal ::
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamCollaboratorsSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -862,7 +864,8 @@ getMLSOne2OneMLSConversation ::
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamCollaboratorsSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -889,7 +892,8 @@ getMLSOne2OneConversation ::
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamCollaboratorsSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Local UserId ->
   Qualified UserId ->

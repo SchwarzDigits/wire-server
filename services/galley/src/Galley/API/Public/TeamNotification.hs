@@ -30,7 +30,9 @@ import Wire.API.Internal.Notification
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.TeamNotification
 import Wire.BrigAPIAccess (BrigAPIAccess)
+import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
 import Wire.TeamNotificationStore (TeamNotificationStore)
+import Wire.TeamSubsystem (TeamSubsystem)
 
 teamNotificationAPI :: API TeamNotificationAPI GalleyEffects
 teamNotificationAPI =
@@ -45,7 +47,9 @@ getTeamNotifications ::
   ( Member BrigAPIAccess r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'InvalidTeamNotificationId) r,
-    Member TeamNotificationStore r
+    Member TeamNotificationStore r,
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r
   ) =>
   UserId ->
   Maybe NotificationId ->

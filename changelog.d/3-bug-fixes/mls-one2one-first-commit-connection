@@ -1,0 +1,1 @@
+The first commit of an MLS 1-1 conversation is now rejected unless the conversation ID matches the two users and these users are connected or in the same team, i.e. the same check as when fetching the 1-1 conversation.

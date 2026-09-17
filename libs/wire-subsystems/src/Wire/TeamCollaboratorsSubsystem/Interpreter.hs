@@ -82,7 +82,7 @@ createTeamCollaboratorImpl ::
   Set CollaboratorPermission ->
   Sem r ()
 createTeamCollaboratorImpl zUser user team perms = do
-  guardPermission (tUnqualified zUser) team TeamMember.GetTeamCollaborators InsufficientRights
+  guardPermission (tUnqualified zUser) team TeamMember.NewTeamCollaborator InsufficientRights
   Store.createTeamCollaborator user team perms
 
   -- TODO: Review the event's values

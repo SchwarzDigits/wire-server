@@ -882,7 +882,8 @@ addMembers ::
     Member TeamCollaboratorsSubsystem r,
     Member FederationSubsystem r,
     Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member (Input ConversationSubsystemConfig) r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -933,7 +934,8 @@ addQualifiedMembersUnqualified ::
     Member TeamCollaboratorsSubsystem r,
     Member FederationSubsystem r,
     Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member (Input ConversationSubsystemConfig) r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1885,7 +1887,8 @@ postProteusBroadcast ::
     Member (Input FanoutLimit) r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member E.UserClientIndexStore r
+    Member E.UserClientIndexStore r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1969,7 +1972,8 @@ postOtrBroadcastUnqualified ::
     Member (Input FanoutLimit) r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member E.UserClientIndexStore r
+    Member E.UserClientIndexStore r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Local UserId ->
   ConnId ->

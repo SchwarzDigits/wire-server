@@ -19,6 +19,7 @@
 
 module Wire.GalleyAPIAccess where
 
+import Control.Lens ((^.))
 import Data.Currency qualified as Currency
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
@@ -176,3 +177,19 @@ data GalleyAPIAccess m a where
     GalleyAPIAccess m Bool
 
 makeSem ''GalleyAPIAccess
+
+-- | Whether members of the given team are isolated from each other, see
+-- 'IsolatedMembersConfig'. Brig-side counterpart of
+-- 'Wire.FeaturesConfigSubsystem.isTeamIsolated'.
+isTeamIsolatedViaGalley :: (Member GalleyAPIAccess r) => TeamId -> Sem r Bool
+isTeamIsolatedViaGalley tid = do
+  feature <- getFeatureConfigForTeam @_ @IsolatedMembersConfig tid
+  pure (feature.status == FeatureStatusEnabled)
+
+-- | Whether the given team member is restricted by 'IsolatedMembersConfig',
+-- i.e. the feature is enabled for the team and the member is neither an admin
+-- nor an owner.
+isIsolatedNonAdminViaGalley :: (Member GalleyAPIAccess r) => TeamId -> Team.TeamMember -> Sem r Bool
+isIsolatedNonAdminViaGalley tid tm
+  | Team.isAdminOrOwner (tm ^. Team.permissions) = pure False
+  | otherwise = isTeamIsolatedViaGalley tid

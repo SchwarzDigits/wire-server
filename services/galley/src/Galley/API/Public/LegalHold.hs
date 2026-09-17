@@ -17,19 +17,46 @@
 
 module Galley.API.Public.LegalHold where
 
+import Data.Id (TeamId, UserId)
+import Data.Qualified (Local, tUnqualified)
 import Galley.API.LegalHold
 import Galley.App
+import Imports
+import Polysemy
+import Wire.API.Error (ErrorS, throwS)
+import Wire.API.Error.Galley
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.LegalHold
-import Wire.TeamSubsystem (getUserStatus)
+import Wire.API.Team.LegalHold (UserLegalHoldStatusResponse)
+import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, isIsolatedNonAdmin)
+import Wire.TeamSubsystem (TeamSubsystem, getUserStatus)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 
 legalHoldAPI :: API LegalHoldAPI GalleyEffects
 legalHoldAPI =
   mkNamedAPI @"create-legal-hold-settings" createSettings
     <@> mkNamedAPI @"get-legal-hold-settings" getSettings
     <@> mkNamedAPI @"delete-legal-hold-settings" removeSettingsInternalPaging
-    <@> mkNamedAPI @"get-legal-hold" getUserStatus
+    <@> mkNamedAPI @"get-legal-hold" getUserStatusChecked
     <@> mkNamedAPI @"consent-to-legal-hold" grantConsent
     <@> mkNamedAPI @"request-legal-hold-device" requestDevice
     <@> mkNamedAPI @"disable-legal-hold-for-user" disableForUser
     <@> mkNamedAPI @"approve-legal-hold-device" approveDevice
+
+-- | Like 'getUserStatus', but members of an isolated team cannot use it to
+-- find out whether other users are part of their team.
+getUserStatusChecked ::
+  ( Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r,
+    Member (ErrorS 'TeamMemberNotFound) r
+  ) =>
+  Local UserId ->
+  TeamId ->
+  UserId ->
+  Sem r UserLegalHoldStatusResponse
+getUserStatusChecked lusr tid uid = do
+  when (uid /= tUnqualified lusr) $ do
+    mSelf <- TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid
+    isolated <- maybe (pure False) (isIsolatedNonAdmin tid) mSelf
+    when isolated $ throwS @'TeamMemberNotFound
+  getUserStatus lusr tid uid

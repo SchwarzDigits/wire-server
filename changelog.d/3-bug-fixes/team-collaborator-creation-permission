@@ -1,0 +1,1 @@
+Adding a team collaborator (`POST /teams/:tid/collaborators`) requires the admin-only `NewTeamCollaborator` permission again; regular team members could add collaborators since the permission check was changed to `GetTeamCollaborators`.

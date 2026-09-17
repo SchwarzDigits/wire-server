@@ -87,6 +87,7 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
 import Wire.TeamStore
+import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, isIsolatedNonAdmin)
 import Wire.TeamSubsystem (TeamSubsystem, getTeamMembersForFanout)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserClientIndexStore
@@ -272,7 +273,8 @@ postBroadcast ::
     Member (Input FanoutLimit) r,
     Member (Input ConversationSubsystemConfig) r,
     Member TeamSubsystem r,
-    Member UserClientIndexStore r
+    Member UserClientIndexStore r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -298,8 +300,15 @@ postBroadcast lusr con msg = runError $ do
   -- In large teams, we may still use the broadcast endpoint but only if `report_missing`
   -- is used and length `report_missing` < limit since we cannot fetch larger teams than
   -- that.
+  -- members of an isolated team only broadcast to their contacts, and must
+  -- not learn about other team members from the mismatch report
+  isolated <-
+    TeamSubsystem.internalGetTeamMember senderUser tid
+      >>= maybe (pure False) (isIsolatedNonAdmin tid)
   tMembers <-
-    fmap (view Wire.API.Team.Member.userId) <$> case qualifiedNewOtrClientMismatchStrategy msg of
+    if isolated
+      then pure [senderUser]
+      else fmap (view Wire.API.Team.Member.userId) <$> case qualifiedNewOtrClientMismatchStrategy msg of
       -- Note: remote ids are not in a local team
       MismatchReportOnly qus ->
         maybeFetchLimitedTeamMemberList

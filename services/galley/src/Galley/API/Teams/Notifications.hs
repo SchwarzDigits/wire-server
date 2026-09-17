@@ -51,12 +51,17 @@ import Wire.API.Event.Team (Event)
 import Wire.API.Internal.Notification
 import Wire.API.User
 import Wire.BrigAPIAccess as Intra
+import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, isIsolatedNonAdmin)
 import Wire.TeamNotificationStore qualified as E
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 
 getTeamNotifications ::
   ( Member BrigAPIAccess r,
     Member (ErrorS 'TeamNotFound) r,
-    Member E.TeamNotificationStore r
+    Member E.TeamNotificationStore r,
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r
   ) =>
   UserId ->
   Maybe NotificationId ->
@@ -64,7 +69,14 @@ getTeamNotifications ::
   Sem r QueuedNotificationList
 getTeamNotifications zusr since size = do
   tid <- (noteS @'TeamNotFound =<<) $ (userTeam =<<) <$> Intra.getUser zusr
-  page <- E.getTeamNotifications tid since size
+  -- the team queue contains events about other team members (e.g.
+  -- member-join), which members of an isolated team must not see
+  mMember <- TeamSubsystem.internalGetTeamMember zusr tid
+  isolated <- maybe (pure False) (isIsolatedNonAdmin tid) mMember
+  page <-
+    if isolated
+      then pure (E.ResultPage mempty False)
+      else E.getTeamNotifications tid since size
   pure $
     queuedNotificationList
       (toList (E.resultSeq page))

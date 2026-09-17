@@ -124,6 +124,7 @@ module Wire.API.Team.Feature
     MeetingsConfig (..),
     MeetingsPremiumConfig (..),
     BackgroundEffectsConfig (..),
+    IsolatedMembersConfig (..),
     Features,
     AllFeatures,
     NpProject (..),
@@ -296,6 +297,7 @@ data FeatureSingleton cfg where
   FeatureSingletonMeetingsConfig :: FeatureSingleton MeetingsConfig
   FeatureSingletonMeetingsPremiumConfig :: FeatureSingleton MeetingsPremiumConfig
   FeatureSingletonBackgroundEffectsConfig :: FeatureSingleton BackgroundEffectsConfig
+  FeatureSingletonIsolatedMembersConfig :: FeatureSingleton IsolatedMembersConfig
 
 type family DeprecatedFeatureName (v :: Version) (cfg :: Type) :: Symbol
 
@@ -2465,6 +2467,34 @@ instance IsFeatureConfig BackgroundEffectsConfig where
 instance ToObjectSchema BackgroundEffectsConfig where
   objectSchema = pure BackgroundEffectsConfig
 
+--------------------------------------------------------------------------------
+-- IsolatedMembers Feature
+
+-- | When enabled, members of a team are isolated from each other: being in the
+-- same team no longer counts as being connected, and regular members cannot
+-- discover other members of their team (search, member lists, team
+-- conversations). Team admins and owners are not restricted in what they can
+-- see. The feature is locked by default and has no public PUT endpoint; it
+-- can only be set by the site operator via the internal API.
+data IsolatedMembersConfig = IsolatedMembersConfig
+  deriving (Eq, Show, Generic, GSOP.Generic)
+  deriving (Arbitrary) via (GenericUniform IsolatedMembersConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName IsolatedMembersConfig)
+  deriving (ParseDbFeature, Default) via TrivialFeature IsolatedMembersConfig
+
+instance ToSchema IsolatedMembersConfig where
+  schema = object objectSchema
+
+instance Default (LockableFeature IsolatedMembersConfig) where
+  def = defLockedFeature
+
+instance IsFeatureConfig IsolatedMembersConfig where
+  type FeatureSymbol IsolatedMembersConfig = "isolatedMembers"
+  featureSingleton = FeatureSingletonIsolatedMembersConfig
+
+instance ToObjectSchema IsolatedMembersConfig where
+  objectSchema = pure IsolatedMembersConfig
+
 ---------------------------------------------------------------------------------
 -- FeatureStatus
 
@@ -2569,7 +2599,8 @@ type Features =
     CellsInternalConfig,
     MeetingsConfig,
     MeetingsPremiumConfig,
-    BackgroundEffectsConfig
+    BackgroundEffectsConfig,
+    IsolatedMembersConfig
   ]
 
 -- | list of available features as a record

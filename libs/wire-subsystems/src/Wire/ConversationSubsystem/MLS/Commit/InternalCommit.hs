@@ -29,6 +29,7 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Tuple.Extra
+import Galley.Types.Conversations.One2One (one2OneConvId)
 import Galley.Types.Error
 import Imports
 import Polysemy
@@ -52,6 +53,7 @@ import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Unreachable
+import Wire.API.User (BaseProtocolTag (..))
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem.Action
@@ -63,6 +65,7 @@ import Wire.ConversationSubsystem.MLS.One2One
 import Wire.ConversationSubsystem.MLS.Proposal
 import Wire.ConversationSubsystem.MLS.Util
 import Wire.ConversationSubsystem.Util
+import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
 import Wire.FederationSubsystem
 import Wire.ProposalStore
 import Wire.Sem.Random (Random)
@@ -86,6 +89,8 @@ processInternalCommit ::
     Member MLSCommitLockStore r,
     Member FederationSubsystem r,
     Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r,
+    Member (ErrorS 'ConvAccessDenied) r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
   SenderIdentity ->
@@ -190,7 +195,8 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
                       mlsConv = fmap (.conv) lConvOrSub
                       lconv = fmap mcConv mlsConv
                   conv <- case filter ((/= senderUser) . fst) newUserClients of
-                    [(otherUser, _)] ->
+                    [(otherUser, _)] -> do
+                      ensureOne2OneAllowed mlsConv senderUser otherUser
                       createMLSOne2OneConversation
                         senderUser
                         otherUser
@@ -280,10 +286,36 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
 
     pure events
 
+-- | Check that a 1-1 conversation created lazily by its first commit really
+-- belongs to the two users of that commit, and that these users are allowed
+-- to talk to each other (the same check as when fetching the 1-1 conversation).
+ensureOne2OneAllowed ::
+  ( HasProposalEffects r,
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r,
+    Member (ErrorS 'ConvAccessDenied) r
+  ) =>
+  Local MLSConversation ->
+  Qualified UserId ->
+  Qualified UserId ->
+  Sem r ()
+ensureOne2OneAllowed lconv self other = do
+  unless (one2OneConvId BaseProtocolMLSTag self other == tUntagged (fmap mcId lconv)) $
+    throw (mlsProtocolError "The 1-1 conversation does not belong to the users of the commit")
+  mapErrorS @'NotConnected @'ConvAccessDenied $
+    case (qualifyAs lconv <$> localUser self, qualifyAs lconv <$> localUser other) of
+      (Just lself, _) -> ensureConnectedOrSameTeam lself [other]
+      (_, Just lother) -> ensureConnectedOrSameTeam lother [self]
+      _ -> throw (mlsProtocolError "A local 1-1 conversation needs at least one local user")
+  where
+    localUser :: Qualified UserId -> Maybe UserId
+    localUser u = foldQualified lconv (Just . tUnqualified) (const Nothing) u
+
 addMembers ::
   ( HasProposalActionEffects r,
     Member FederationSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Qualified UserId ->
   Maybe ConnId ->

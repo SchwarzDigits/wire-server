@@ -153,6 +153,7 @@ library
     Test.FeatureFlags.EnforceFileDownloadLocation
     Test.FeatureFlags.FileSharing
     Test.FeatureFlags.GuestLinks
+    Test.FeatureFlags.IsolatedMembers
     Test.FeatureFlags.LegalHold
     Test.FeatureFlags.Meeting
     Test.FeatureFlags.MeetingPremium
@@ -173,6 +174,7 @@ library
     Test.FeatureFlags.Util
     Test.Federation
     Test.Federator
+    Test.IsolatedMembers
     Test.LegalHold
     Test.Login
     Test.Meetings

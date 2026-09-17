@@ -252,6 +252,7 @@ defAllFeatures =
       "meetings" .= enabled,
       "meetingsPremium" .= enabledLocked,
       "backgroundEffects" .= enabledLocked,
+      "isolatedMembers" .= disabledLocked,
       "preventAdminlessGroups"
         .= object
           [ "lockStatus" .= "unlocked",

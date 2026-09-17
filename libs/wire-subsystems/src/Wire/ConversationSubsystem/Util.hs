@@ -83,6 +83,7 @@ import Wire.CodeStore.Code as DataTypes
 import Wire.ConversationStore
 import Wire.ExternalAccess
 import Wire.FederationAPIAccess
+import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, isTeamIsolated)
 import Wire.FederationSubsystem (ensureNoUnreachableBackends)
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
@@ -136,7 +137,8 @@ ensureConnectedOrSameTeam ::
     Member (ErrorS 'NotConnected) r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Local UserId ->
   [Qualified UserId] ->
@@ -152,12 +154,17 @@ ensureConnectedOrSameTeam lusr others = do
 -- A collaboration exists between users `u` and `v` if either `u` is
 -- collaborating with `v`s team and has "implicit connection"
 -- permissions, or that `v` is collaborating in `u`s team.
+--
+-- Teams with the isolated members feature enabled are ignored here:
+-- being in (or collaborating with) such a team does not count as being
+-- connected.
 ensureConnectedToLocalsOrSameTeam ::
   ( Member BrigAPIAccess r,
     Member (ErrorS 'NotConnected) r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Local UserId ->
   [UserId] ->
@@ -165,9 +172,9 @@ ensureConnectedToLocalsOrSameTeam ::
 ensureConnectedToLocalsOrSameTeam _ [] = pure ()
 ensureConnectedToLocalsOrSameTeam (tUnqualified -> u) uids = do
   -- own team
-  uTeams <- getUserTeams u
+  uTeams <- getUserTeams u >>= filterM (fmap not . isTeamIsolated)
   -- teams with which `u` collaborates
-  icTeams <- getUserCollaborationTeams
+  icTeams <- getUserCollaborationTeams >>= filterM (fmap not . isTeamIsolated)
   -- users collaborating with `u`s team
   icUsers <- getTeamCollaborators uTeams
   -- Subset of uids from same team as `u` (the user who wants to connect)

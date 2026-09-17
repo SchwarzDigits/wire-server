@@ -216,7 +216,8 @@ instance IsConversationAction 'ConversationJoinTag where
         Member TeamStore r,
         Member TinyLog r,
         Member E.ConversationStore r,
-        Member (Error NoChanges) r
+        Member (Error NoChanges) r,
+        Member FeaturesConfigSubsystem r
       )
 
   type
@@ -1026,7 +1027,8 @@ updateLocalConversationJoin ::
     Member TeamStore r,
     Member TinyLog r,
     Member E.ConversationStore r,
-    Member (Error NoChanges) r
+    Member (Error NoChanges) r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Local ConvId ->
   Qualified UserId ->
@@ -1370,7 +1372,8 @@ updateLocalConversationUncheckedJoin ::
     Member TeamStore r,
     Member TinyLog r,
     Member E.ConversationStore r,
-    Member (Error NoChanges) r
+    Member (Error NoChanges) r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Local StoredConversation ->
   Qualified UserId ->

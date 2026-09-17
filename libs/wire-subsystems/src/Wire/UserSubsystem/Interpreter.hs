@@ -915,12 +915,21 @@ searchUsersImpl searcherId searchTerm maybeDomain maybeMaxResults mTypes = do
   let mSearcherTeamId = mUser >>= (.teamId)
   for_ mSearcherTeamId $ \tid ->
     ensurePermissions searcher tid [SearchContacts]
+  -- members of an isolated team cannot search for other users
+  isolated <- case mSearcherTeamId of
+    Nothing -> pure False
+    Just tid ->
+      internalGetTeamMember searcher tid
+        >>= maybe (pure False) (GalleyAPIAccess.isIsolatedNonAdminViaGalley tid)
   let qDomain = Qualified () (fromMaybe (tDomain searcherId) maybeDomain)
-  foldQualified
-    searcherId
-    (\_ -> searchLocally ((,mSearcherTeamId) <$> searcherId) searchTerm maybeMaxResults mTypes)
-    (\rdom -> searchRemotely rdom mSearcherTeamId searchTerm mTypes)
-    qDomain
+  if isolated
+    then pure $ SearchResult 0 0 0 [] FullSearch Nothing Nothing
+    else
+      foldQualified
+        searcherId
+        (\_ -> searchLocally ((,mSearcherTeamId) <$> searcherId) searchTerm maybeMaxResults mTypes)
+        (\rdom -> searchRemotely rdom mSearcherTeamId searchTerm mTypes)
+        qDomain
 
 searchLocally ::
   forall r.

@@ -17,13 +17,20 @@
 
 module Galley.API.Public.TeamMember where
 
+import Data.Id (TeamId)
+import Data.Qualified (Local, tUnqualified)
 import Galley.API.Teams
 import Galley.API.Teams.Export qualified as Export
 import Galley.App
+import Imports
+import Polysemy
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.TeamMember
 import Wire.API.Team.Collaborator
+import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, isIsolatedNonAdmin)
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 
 teamMemberAPI :: API TeamMemberAPI GalleyEffects
 teamMemberAPI =
@@ -37,6 +44,22 @@ teamMemberAPI =
     <@> mkNamedAPI @"get-team-members-csv" Export.getTeamMembersCSV
     <@> mkNamedAPI @"add-team-collaborator"
       (\zuid tid (NewTeamCollaborator uid perms) -> createTeamCollaborator zuid uid tid perms)
-    <@> mkNamedAPI @"get-team-collaborators" getAllTeamCollaborators
+    <@> mkNamedAPI @"get-team-collaborators" getTeamCollaborators
     <@> mkNamedAPI @"update-team-collaborator" updateTeamCollaborator
     <@> mkNamedAPI @"remove-team-collaborator" removeTeamCollaborator
+
+-- | Members of an isolated team do not get to see the team's collaborators.
+getTeamCollaborators ::
+  ( Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r
+  ) =>
+  Local UserId ->
+  TeamId ->
+  Sem r [TeamCollaborator]
+getTeamCollaborators lusr tid = do
+  mMember <- TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid
+  isolated <- maybe (pure False) (isIsolatedNonAdmin tid) mMember
+  if isolated
+    then pure []
+    else getAllTeamCollaborators lusr tid

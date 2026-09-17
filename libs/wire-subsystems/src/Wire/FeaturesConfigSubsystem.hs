@@ -19,12 +19,14 @@
 
 module Wire.FeaturesConfigSubsystem where
 
+import Control.Lens ((^.))
 import Data.Id (ConvId, TeamId, UserId)
-import Data.Proxy (Proxy)
+import Data.Proxy (Proxy (..))
 import Data.Qualified (Local)
 import Imports
 import Polysemy
-import Wire.API.Team.Feature (AllTeamFeatures, DbFeature, LockableFeature)
+import Wire.API.Team.Feature (AllTeamFeatures, DbFeature, IsolatedMembersConfig, LockableFeature)
+import Wire.API.Team.Member (TeamMember, isAdminOrOwner, permissions)
 import Wire.FeaturesConfigSubsystem.Types
 
 data FeaturesConfigSubsystem m a where
@@ -60,3 +62,16 @@ data FeaturesConfigSubsystem m a where
     FeaturesConfigSubsystem m (LockableFeature cfg)
 
 makeSem ''FeaturesConfigSubsystem
+
+-- | Whether members of the given team are isolated from each other, see
+-- 'IsolatedMembersConfig'.
+isTeamIsolated :: (Member FeaturesConfigSubsystem r) => TeamId -> Sem r Bool
+isTeamIsolated = featureEnabledForTeam (Proxy @IsolatedMembersConfig)
+
+-- | Whether the given team member is restricted by 'IsolatedMembersConfig',
+-- i.e. the feature is enabled for the team and the member is neither an admin
+-- nor an owner.
+isIsolatedNonAdmin :: (Member FeaturesConfigSubsystem r) => TeamId -> TeamMember -> Sem r Bool
+isIsolatedNonAdmin tid tm
+  | isAdminOrOwner (tm ^. permissions) = pure False
+  | otherwise = isTeamIsolated tid

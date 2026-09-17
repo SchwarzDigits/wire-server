@@ -76,6 +76,18 @@ testTeamCollaboratorEndpointsForbiddenForOtherTeams = do
 
   getAllTeamCollaborators owner team2 >>= assertStatus 403
 
+testCreateTeamCollaboratorRequiresAdmin :: (HasCallStack) => App ()
+testCreateTeamCollaboratorRequiresAdmin = do
+  (owner, team, [member]) <- createTeam OwnDomain 2
+  user <- randomUser OwnDomain def
+
+  -- a regular team member cannot add collaborators
+  addTeamCollaborator member team user ["create_team_conversation"]
+    >>= assertStatus 403
+
+  addTeamCollaborator owner team user ["create_team_conversation"]
+    >>= assertSuccess
+
 testCreateTeamCollaboratorPostTwice :: (HasCallStack) => App ()
 testCreateTeamCollaboratorPostTwice = do
   (owner, team, _members) <- createTeam OwnDomain 2

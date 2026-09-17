@@ -222,7 +222,8 @@ createOne2OneConversation ::
     Member BackendNotificationQueueAccess r,
     Member (FederationAPIAccess FederatorClient) r,
     Member (Error InternalError) r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Local UserId ->
   ConnId ->

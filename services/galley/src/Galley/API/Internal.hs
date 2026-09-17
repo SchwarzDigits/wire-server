@@ -293,6 +293,7 @@ allFeaturesAPI =
     <@> featureAPI1Full
     <@> featureAPI1Full
     <@> featureAPI1Full
+    <@> featureAPI1Full
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
@@ -320,6 +321,7 @@ featureAPI =
     <@> mkNamedAPI @'("ilock", MeetingsConfig) (updateLockStatus @MeetingsConfig)
     <@> mkNamedAPI @'("ilock", MeetingsPremiumConfig) (updateLockStatus @MeetingsPremiumConfig)
     <@> mkNamedAPI @'("ilock", BackgroundEffectsConfig) (updateLockStatus @BackgroundEffectsConfig)
+    <@> mkNamedAPI @'("ilock", IsolatedMembersConfig) (updateLockStatus @IsolatedMembersConfig)
     -- all features
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllTeamFeaturesForServer getAllTeamFeaturesForUser)
 
@@ -369,12 +371,9 @@ rmUser lusr conn = do
     leaveTeams page = for_ (pageItems page) $ \tid -> do
       toNotify <-
         handleImpossibleErrors $
-          getFeatureForTeam @_ @LimitedEventFanoutConfig tid
-            >>= ( \case
-                    FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
-                    FeatureStatusDisabled -> Right <$> TeamSubsystem.getTeamMembersForFanout tid
-                )
-              . (.status)
+          Teams.limitedTeamEventFanout tid >>= \case
+            True -> Left <$> E.getTeamAdmins tid
+            False -> Right <$> TeamSubsystem.getTeamMembersForFanout tid
       uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) toNotify
       page' <- listTeams @p2 (tUnqualified lusr) (Just (pageState page)) maxBound
       leaveTeams page'

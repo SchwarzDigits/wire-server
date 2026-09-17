@@ -152,7 +152,8 @@ createOne2OneConversationLogic ::
     Member Now r,
     Member NotificationSubsystem r,
     Member BackendNotificationQueueAccess r,
-    Member (FederationAPIAccess FederatorClient) r
+    Member (FederationAPIAccess FederatorClient) r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -165,6 +166,9 @@ createOne2OneConversationLogic lusr zcon j = do
     throwS @'InvalidOperation
   mtid <- case j.team of
     Just ti -> do
+      -- members of an isolated team are not implicitly connected
+      whenM (isTeamIsolated (cnvTeamId ti)) $
+        ensureConnected lusr allUsers
       foldQualified
         lusr
         (\lother -> checkBindingTeamPermissions lusr lother (cnvTeamId ti))
@@ -348,7 +352,14 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
 
   convLocalMemberships <- mapM (flip TeamSubsystem.internalGetTeamMember convTeam) (ulLocals allUsers)
   ensureAccessRole (accessRoles newConv) (zip (ulLocals allUsers) convLocalMemberships)
-  ensureConnectedToLocals (tUnqualified lusr) (notTeamMember (ulLocals allUsers) (catMaybes convLocalMemberships))
+  -- members of an isolated team are not implicitly connected
+  isolated <- isTeamIsolated convTeam
+  ensureConnectedToLocals
+    (tUnqualified lusr)
+    ( if isolated
+        then ulLocals allUsers
+        else notTeamMember (ulLocals allUsers) (catMaybes convLocalMemberships)
+    )
   ensureConnectedToRemotes lusr (ulRemotes allUsers)
   where
     ensureCreateChannelPermissions ::
