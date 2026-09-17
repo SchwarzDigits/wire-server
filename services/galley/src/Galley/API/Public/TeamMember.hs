@@ -17,7 +17,7 @@
 
 module Galley.API.Public.TeamMember where
 
-import Data.Id (TeamId)
+import Data.Id (TeamId, UserId)
 import Data.Qualified (Local, tUnqualified)
 import Galley.API.Teams
 import Galley.API.Teams.Export qualified as Export

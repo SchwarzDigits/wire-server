@@ -29,7 +29,7 @@ import Data.Range
 import Imports
 import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
-import Wire.API.Conversation
+import Wire.API.Conversation hiding (Member)
 import Wire.API.Routes.Internal.Brig.EJPD (EJPDConvInfo)
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team
@@ -37,6 +37,7 @@ import Wire.API.Team.Conversation qualified as Conv
 import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member qualified as Team
+import Wire.API.Team.Member qualified as TeamMember (isAdminOrOwner, permissions)
 import Wire.API.Team.Member.Info qualified as Team
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
@@ -191,5 +192,5 @@ isTeamIsolatedViaGalley tid = do
 -- nor an owner.
 isIsolatedNonAdminViaGalley :: (Member GalleyAPIAccess r) => TeamId -> Team.TeamMember -> Sem r Bool
 isIsolatedNonAdminViaGalley tid tm
-  | Team.isAdminOrOwner (tm ^. Team.permissions) = pure False
+  | TeamMember.isAdminOrOwner (tm ^. TeamMember.permissions) = pure False
   | otherwise = isTeamIsolatedViaGalley tid

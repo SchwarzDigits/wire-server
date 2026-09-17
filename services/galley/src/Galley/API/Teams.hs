@@ -478,8 +478,8 @@ bulkGetTeamMembers lzusr tid mbMaxResults uids = do
     throwS @'BulkGetMemberLimitExceeded
   m <- TeamSubsystem.internalGetTeamMember (tUnqualified lzusr) tid >>= noteS @'NotATeamMember
   isolated <- isIsolatedNonAdmin tid m
-  let visible = if isolated then filter (== tUnqualified lzusr) else id
-  mems <- TeamSubsystem.internalSelectTeamMembers tid (visible (U.mUsers uids))
+  let restrictToSelf = if isolated then filter (== tUnqualified lzusr) else id
+  mems <- TeamSubsystem.internalSelectTeamMembers tid (restrictToSelf (U.mUsers uids))
   let withPerms = (m `canSeePermsOf`)
       hasMore = ListComplete
   pure $ setOptionalPermsMany withPerms (newTeamMemberList mems hasMore)
