@@ -78,11 +78,11 @@ testTeamCollaboratorEndpointsForbiddenForOtherTeams = do
 
 testCreateTeamCollaboratorRequiresAdmin :: (HasCallStack) => App ()
 testCreateTeamCollaboratorRequiresAdmin = do
-  (owner, team, [member]) <- createTeam OwnDomain 2
+  (owner, team, [regularMember]) <- createTeam OwnDomain 2
   user <- randomUser OwnDomain def
 
   -- a regular team member cannot add collaborators
-  addTeamCollaborator member team user ["create_team_conversation"]
+  addTeamCollaborator regularMember team user ["create_team_conversation"]
     >>= assertStatus 403
 
   addTeamCollaborator owner team user ["create_team_conversation"]

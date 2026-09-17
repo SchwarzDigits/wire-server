@@ -66,7 +66,7 @@ jobs:
           cabal update
           df -h /
           set -o pipefail
-          cabal build -j2 wire-api wire-subsystems galley brig stern integration 2>&1 | tee build.log
+          cabal build -j2 --keep-going wire-api wire-subsystems galley brig stern integration 2>&1 | tee build.log
 
       - name: Upload build log
         if: always()
