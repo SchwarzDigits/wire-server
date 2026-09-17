@@ -1223,6 +1223,7 @@ userIsTeamOwner ::
     Member (ErrorS 'AccessDenied) r,
     Member (ErrorS 'NotATeamMember) r,
     Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r,
     Member (Input (Local ())) r
   ) =>
   TeamId ->
