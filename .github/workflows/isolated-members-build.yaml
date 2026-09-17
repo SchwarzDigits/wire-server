@@ -34,6 +34,7 @@ jobs:
       - name: Drop the private enterprise package
         run: |
           git config -f .gitmodules --remove-section submodule.services/wire-server-enterprise
+          git add .gitmodules
           git rm --cached -q services/wire-server-enterprise
           sed -i '/wire-server-enterprise/d' nix/local-haskell-packages.nix nix/wire-server.nix
           sed -i '/services\/wire-server-enterprise/d' cabal.project
