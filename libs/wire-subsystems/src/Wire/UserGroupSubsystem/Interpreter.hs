@@ -70,7 +70,7 @@ interpretUserGroupSubsystem ::
   InterpreterFor UserGroupSubsystem r
 interpretUserGroupSubsystem = interpret $ \case
   CreateGroup creator newGroup -> createUserGroup creator newGroup
-  GetGroup getter gid includeChannels -> getUserGroup getter gid includeChannels
+  GetGroup getter gid includeChannels -> getUserGroupForGetter getter gid includeChannels
   GetGroups getter search -> getUserGroups getter search
   UpdateGroup updater groupId groupUpdate -> updateGroup updater groupId groupUpdate
   DeleteGroup deleter groupId -> deleteGroup deleter groupId
@@ -203,8 +203,7 @@ mkEvent = mmkEvent . Just
 getUserGroup ::
   ( Member UserSubsystem r,
     Member Store.UserGroupStore r,
-    Member TeamSubsystem r,
-    Member GalleyAPIAccess r
+    Member TeamSubsystem r
   ) =>
   UserId ->
   UserGroupId ->
@@ -214,11 +213,30 @@ getUserGroup getter gid includeChannels = runMaybeT $ do
   team <- MaybeT $ getUserTeam getter
   getterCanSeeAll <- mkGetterCanSeeAll getter team
   userGroup <- MaybeT $ getUserGroupInternal team gid includeChannels
-  -- members of an isolated team cannot see the other members of their groups
-  isolated <- if getterCanSeeAll then pure False else lift $ isTeamIsolatedViaGalley team
-  if getterCanSeeAll || (not isolated && getter `elem` toList (runIdentity userGroup.members))
+  if getterCanSeeAll || getter `elem` (toList (runIdentity userGroup.members))
     then pure userGroup
     else MaybeT $ pure Nothing
+
+-- | Like 'getUserGroup', but members of an isolated team cannot see the other
+-- members of their groups.
+getUserGroupForGetter ::
+  ( Member UserSubsystem r,
+    Member Store.UserGroupStore r,
+    Member TeamSubsystem r,
+    Member GalleyAPIAccess r
+  ) =>
+  UserId ->
+  UserGroupId ->
+  Bool ->
+  Sem r (Maybe UserGroup)
+getUserGroupForGetter getter gid includeChannels = runMaybeT $ do
+  userGroup <- MaybeT $ getUserGroup getter gid includeChannels
+  team <- MaybeT $ getUserTeam getter
+  getterCanSeeAll <- mkGetterCanSeeAll getter team
+  isolated <- if getterCanSeeAll then pure False else lift $ isTeamIsolatedViaGalley team
+  if isolated
+    then MaybeT $ pure Nothing
+    else pure userGroup
 
 getUserGroupInternal ::
   (Member Store.UserGroupStore r) =>
